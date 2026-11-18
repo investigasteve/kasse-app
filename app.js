@@ -85,9 +85,9 @@ async function bauDateien() {
   const im = new Set(((D.master && D.master.buchungen) || []).filter(b => b.beleg).map(b => b.uid));
   const ks = (await fkeys()).filter(u => !im.has(u) && (D.eig.some(b => b.uid === u) || ((D.master && D.master.buchungen) || []).some(b => b.uid === u)));
   if (!D.eig.length && !ks.length) return null;
-  const d = new Date(), fn = `kasse-handy-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.json`;
+  const d = new Date(), fn = `kasse-handy-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.txt`;
   const out = { format: 'steuergali-kasse', version: 1, von: 'handy', stand: Date.now(), buchungen: D.eig.map(({ foto, geteilt, ...b }) => b) };
-  const files = [new File([JSON.stringify(out)], fn, { type: 'application/json' })];
+  const files = [new File([JSON.stringify(out)], fn, { type: 'text/plain' })];
   for (const u of ks) { const b = await fget(u); if (b) { const pdf = b.type === 'application/pdf'; files.push(new File([b], `beleg-${u}.${pdf ? 'pdf' : 'jpg'}`, { type: pdf ? 'application/pdf' : 'image/jpeg' })); } }
   return { files, fn };
 }
@@ -112,7 +112,7 @@ const TABS = [['b', 'Buchungen'], ['z', 'Zahlen'], ['y', 'Abgleich']];
 function chrome() {
   $('#nv').innerHTML = TABS.map(([k, n]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="go('${k}')">${t(n)}</button>`).join('');
   $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="sprache('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="sprache('es')">ES</button>`;
-  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v7';
+  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v8';
 }
 function sprache(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
 function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scrollTo(0, 0); }
