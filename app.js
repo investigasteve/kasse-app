@@ -3,7 +3,7 @@
 const ES = {
   'Buchungen': 'Apuntes', 'Zahlen': 'Cifras', 'Abgleich': 'Sincronizar', 'Jahr': 'Año', 'Neue Buchung': 'Nuevo apunte', 'Buchung': 'Apunte', 'Einnahme': 'Ingreso', 'Ausgabe': 'Gasto',
   'Datum': 'Fecha', 'Betrag': 'Importe', 'Betrag ist': 'El importe es', 'brutto (mit IVA)': 'bruto (con IVA)', 'netto (ohne IVA)': 'neto (sin IVA)', 'IVA-Satz': 'Tipo de IVA', 'Partner (Kunde / Lieferant)': 'Contacto (cliente / proveedor)',
-  'Rechnungsnummer': 'Nº de factura', 'Kategorie': 'Categoría', 'Land': 'País', 'Notiz': 'Nota', 'Belegfoto': 'Foto del justificante', 'Foto aufnehmen / wählen': 'Hacer / elegir foto', 'Foto entfernen': 'Quitar foto',
+  'Rechnungsnummer': 'Nº de factura', 'Kategorie': 'Categoría', 'Land': 'País', 'Notiz': 'Nota', 'Belegfoto': 'Foto del justificante', 'Foto aufnehmen / wählen': 'Hacer / elegir foto', 'Das Foto wird beim nächsten Sichern mitgesendet.': 'La foto se enviará en la próxima copia.', 'Foto gespeichert.': 'Foto guardado.', 'Foto wartet auf das Notebook': 'foto espera al portátil', 'Foto entfernen': 'Quitar foto',
   'Speichern': 'Guardar', 'Abbrechen': 'Cancelar', 'Schließen': 'Cerrar', 'Löschen': 'Borrar', 'Gespeichert.': 'Guardado.', 'Gelöscht.': 'Borrado.',
   'Das Datum ist ungültig.': 'La fecha no es válida.', 'Der Betrag muss größer als 0 sein.': 'El importe debe ser mayor que 0.', 'Dieses Quartal ist am Notebook abgeschlossen (deklariert). Hier kann nichts mehr eingetragen werden.': 'Este trimestre está cerrado (declarado) en el portátil. Aquí ya no se puede registrar nada.',
   'Vom Notebook – hier nur zum Ansehen.': 'Del portátil – aquí solo para consultar.', 'wartet auf das Notebook': 'espera al portátil', 'neu': 'nuevo', 'Beleg am Notebook': 'justificante en el portátil', 'Foto': 'foto', 'Quartal abgeschlossen': 'trimestre cerrado',
@@ -106,13 +106,14 @@ function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scro
 function yrOpts() { let h = ''; for (let y = 2023; y <= new Date().getFullYear() + 1; y++) h += `<option ${y === S.y ? 'selected' : ''}>${y}</option>`; return h; }
 const chips = () => `<div class="chips">${[[0, t('Jahr')], [1, 'Q1'], [2, 'Q2'], [3, 'Q3'], [4, 'Q4']].map(([q, n]) => `<button class="${S.q === q ? 'on' : ''}" onclick="S.q=${q};go(S.tab)">${n}</button>`).join('')}</div>`;
 
-function vB() {
+async function vB() {
+  const fk = new Set(await fkeys());
   const rows = alle().filter(b => b.datum.slice(0, 4) == S.y && (!S.q || qOf(b.datum) === S.q)).sort((a, b) => b.datum.localeCompare(a.datum) || (b.geaendert || 0) - (a.geaendert || 0));
   $('#m').innerHTML = `<div class="half"><select onchange="S.y=+this.value;go('b')">${yrOpts()}</select><button class="btn" onclick="edit('')">+ ${t('Neue Buchung')}</button></div>${chips()}` +
     (D.master ? '' : `<div class="sum">${t('Keine Daten vom Notebook im Handy. Du kannst trotzdem Buchungen erfassen; lade die Datei „kasse-daten.json“ unter „Abgleich“.')}</div>`) +
     (rows.length ? rows.map(b => `<div class="card" onclick="edit('${b.uid}')"><div class="l"><b>${esc(b.partner || tk(b.kategorie) || '–')}</b>
       <div class="mu">${dm(b.datum)} · ${esc(tk(b.kategorie) || '')}${b.iva_satz != 21 ? ' · ' + b.iva_satz + ' %' : ''}</div>
-      <div>${b._m ? (b.beleg ? `<span class="tag">📎 ${t('Beleg am Notebook')}</span>` : '') : `<span class="tag w">${b.geteilt ? t('wartet auf das Notebook') : t('neu')}</span>${b.foto ? `<span class="tag">📷</span>` : ''}`}${zu(b.datum) ? `<span class="tag">🔒</span>` : ''}</div></div>
+      <div>${b._m ? (b.beleg ? `<span class="tag">📎 ${t('Beleg am Notebook')}</span>` : (fk.has(b.uid) ? `<span class="tag w">📷 ${t('Foto wartet auf das Notebook')}</span>` : '')) : `<span class="tag w">${b.geteilt ? t('wartet auf das Notebook') : t('neu')}</span>${b.foto ? `<span class="tag">📷</span>` : ''}`}${zu(b.datum) ? `<span class="tag">🔒</span>` : ''}</div></div>
       <div class="r ${b.typ === 'einnahme' ? 'ein' : 'aus'}">${b.typ === 'einnahme' ? '+' : '−'}${eur(b.brutto)}</div></div>`).join('') : `<div class="mu">${t('Keine Buchungen.')}</div>`);
 }
 
@@ -143,9 +144,12 @@ function ov(h) { const o = $('#ov'); o.innerHTML = `<div class="sheet">${h}</div
 async function edit(u) {
   const alt = u ? alle().find(b => b.uid === u) : null;
   if (alt && alt._m) {
-    const h = await fget(u);
+    const h = await fget(u); F = { uid: u, m: 1 };
     ov(`<h2>${t('Buchung')}</h2><div class="card" style="display:block"><b class="${alt.typ === 'einnahme' ? 'ein' : 'aus'}">${alt.typ === 'einnahme' ? '+' : '−'}${eur(alt.brutto)}</b><div class="mu">${dm(alt.datum)} · ${alt.iva_satz} % IVA · ${esc(alt.land)}</div><div>${esc(alt.partner)}</div><div class="mu">${esc(tk(alt.kategorie))}${alt.rechnungsnr ? ' · ' + esc(alt.rechnungsnr) : ''}</div><div>${esc(alt.notiz)}</div></div>
-     <div class="mu">${t('Vom Notebook – hier nur zum Ansehen.')}</div><div class="row"><button class="btn alt" onclick="oc()">${t('Schließen')}</button></div>`);
+     <div class="mu">${t('Vom Notebook – hier nur zum Ansehen.')}</div>
+     <label>${t('Belegfoto')}</label>${alt.beleg ? `<div class="mu">📎 ${t('Beleg am Notebook')}</div>` : `<div class="row"><label class="btn alt" style="margin:0">📷 ${t('Foto aufnehmen / wählen')}<input type="file" accept="image/*" style="display:none" onchange="fotoMaster(this)"></label><button class="btn del s" id="f-fw" onclick="fotoMasterWeg()" style="display:none">${t('Foto entfernen')}</button></div><img id="f-img" class="foto" style="display:none" alt=""><div class="mu" id="f-hint" style="display:none">${t('Das Foto wird beim nächsten Sichern mitgesendet.')}</div>`}
+     <div class="row"><button class="btn alt" onclick="oc();go('b')">${t('Schließen')}</button></div>`);
+    if (h && !alt.beleg) { zeigFoto(h); const x = $('#f-hint'); if (x) x.style.display = 'block'; }
     return;
   }
   F = { uid: alt ? alt.uid : uid(), neu: !alt, typ: alt ? alt.typ : 'ausgabe', blob: null, hatFoto: !!(alt && alt.foto), weg: false };
@@ -166,6 +170,11 @@ async function edit(u) {
    <div class="row" style="margin-top:18px"><button class="btn" onclick="eSave()">${t('Speichern')}</button><button class="btn alt" onclick="oc()">${t('Abbrechen')}</button>${alt ? `<button class="btn del" onclick="eDel()">${t('Löschen')}</button>` : ''}</div>`);
   if (F.hatFoto) fget(F.uid).then(bl => { if (bl) zeigFoto(bl); });
 }
+async function fotoMaster(inp) {
+  const f = inp.files[0]; inp.value = ''; if (!f) return;
+  try { const bl = await verkleinern(f); if (bl.size > 14 * 1024 * 1024) { msg(t('Fotos nicht angenommen: zu groß.'), 1); return; } await fput(F.uid, bl); zeigFoto(bl); const x = $('#f-hint'); if (x) x.style.display = 'block'; msg(t('Foto gespeichert.')); } catch (e) { msg('Foto: ' + e.message, 1); }
+}
+async function fotoMasterWeg() { await fdel(F.uid); const i = $('#f-img'); i.style.display = 'none'; $('#f-fw').style.display = 'none'; const x = $('#f-hint'); if (x) x.style.display = 'none'; }
 function art(x) { F.typ = x; $('#a-a').classList.toggle('on', x === 'ausgabe'); $('#a-e').classList.toggle('on', x === 'einnahme'); }
 function zeigFoto(bl) { const i = $('#f-img'); if (!i) return; if (i.src) URL.revokeObjectURL(i.src); i.src = URL.createObjectURL(bl); i.style.display = 'block'; $('#f-fw').style.display = ''; }
 async function fotoWahl(inp) {
