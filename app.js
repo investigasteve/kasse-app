@@ -14,7 +14,7 @@ const ES = {
   'Stand vom Notebook:': 'Datos del portátil:', 'noch nie geladen': 'nunca cargado', 'Zuletzt gesichert:': 'Última copia:', 'nie': 'nunca', 'Buchungen warten auf das Notebook': 'apuntes esperan al portátil', 'Fotos zum Mitsenden': 'fotos para enviar',
   'Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.': 'Al guardar se crean un archivo y las fotos. Elija «Drive» y la carpeta «Belege-Eingang»; el portátil las leerá en la próxima sincronización.',
   'Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Belege-Eingang“.': 'Al cargar se abre el selector: elija «kasse-daten.json» de la carpeta «Belege-Eingang» de Drive.',
-  'Datei gesichert.': 'Archivo guardado.', 'Bereit. Bitte noch einmal auf „Sichern“ tippen.': 'Listo. Pulse de nuevo «Guardar».', 'Das Teilen ging nicht. Die Dateien liegen jetzt im Ordner „Downloads“ des Handys. Bitte von dort nach Drive „Belege-Eingang“ verschieben.': 'No se pudo compartir. Los archivos están en la carpeta «Descargas» del móvil. Muévalos desde allí a Drive «Belege-Eingang».', 'Nichts zu sichern.': 'Nada que guardar.', 'Geladen:': 'Cargado:', 'angekommen': 'recibidos', 'Fotos nicht angenommen: zu groß.': 'Foto no aceptada: demasiado grande.',
+  'Datei gesichert.': 'Archivo guardado.', 'Automatischer Abgleich mit Google Drive': 'Sincronización automática con Google Drive', 'Verbindungsadresse (einmalig eintragen)': 'Dirección de conexión (introducir una vez)', 'Verbinden': 'Conectar', 'Jetzt abgleichen': 'Sincronizar ahora', 'Verbunden. Letzter Abgleich:': 'Conectado. Última sincronización:', 'Noch nicht verbunden.': 'Aún sin conectar.', 'Verbindung fehlgeschlagen:': 'Conexión fallida:', 'Abgleich läuft …': 'Sincronizando …', 'Bereit. Bitte noch einmal auf „Sichern“ tippen.': 'Listo. Pulse de nuevo «Guardar».', 'Das Teilen ging nicht. Die Dateien liegen jetzt im Ordner „Downloads“ des Handys. Bitte von dort nach Drive „Belege-Eingang“ verschieben.': 'No se pudo compartir. Los archivos están en la carpeta «Descargas» del móvil. Muévalos desde allí a Drive «Belege-Eingang».', 'Nichts zu sichern.': 'Nada que guardar.', 'Geladen:': 'Cargado:', 'angekommen': 'recibidos', 'Fotos nicht angenommen: zu groß.': 'Foto no aceptada: demasiado grande.',
   'Von': 'De', 'bis': 'a', 'Alle Buchungen im Handy ansehen': 'Ver todos los apuntes'
 };
 const KATS = ['Förderung/Zuschuss', 'Rechnung', 'Bücher/KDP', 'Affiliate', 'Postkarten/Druck', 'Aufträge', 'Hosting/Domain', 'Software', 'Büro', 'Reise', 'Telefon/Internet', 'Sozialversicherung', 'Sonstiges', 'Unklar'];
@@ -36,7 +36,8 @@ function validDate(d) { if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false; const 
 /* ---------- Daten ---------- */
 const leer = () => ({ master: null, eig: [], gesichert: 0 });
 let D = (() => { try { const j = JSON.parse(localStorage.getItem('kb_data')); if (j && Array.isArray(j.eig)) return j; } catch (e) { } return leer(); })();
-function save() { try { localStorage.setItem('kb_data', JSON.stringify(D)); } catch (e) { msg('Speichern im Handy nicht möglich.', 1); } }
+let QUIET = false;
+function save() { try { localStorage.setItem('kb_data', JSON.stringify(D)); } catch (e) { msg('Speichern im Handy nicht möglich.', 1); } if (!QUIET && typeof drvSoon === 'function') drvSoon(4000); }
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { }
 const S = { tab: 'b', y: new Date().getFullYear(), q: 0 };
 const zu = d => !!((D.master && D.master.abgeschlossen) || {})[d.slice(0, 4) + '-Q' + qOf(d)];
@@ -47,7 +48,7 @@ const netto = b => Math.round(b.brutto / (1 + b.iva_satz / 100) * 100) / 100;
 const idb = () => new Promise((res, rej) => { const r = indexedDB.open('kasse', 1); r.onupgradeneeded = () => r.result.createObjectStore('fotos'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const idbDo = (mode, f) => idb().then(d => new Promise((res, rej) => { const tx = d.transaction('fotos', mode), st = tx.objectStore('fotos'), q = f(st); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); }));
 const fget = u => idbDo('readonly', s => s.get(u)).catch(() => null);
-const fput = (u, b) => idbDo('readwrite', s => s.put(b, u));
+const fput = (u, b) => idbDo('readwrite', s => s.put(b, u)).then(r => { if (typeof drvSoon === 'function') drvSoon(4000); return r; });
 const fdel = u => idbDo('readwrite', s => s.delete(u)).catch(() => { });
 const fkeys = () => idbDo('readonly', s => s.getAllKeys()).then(k => k || []).catch(() => []);
 function verkleinern(file) {
@@ -112,7 +113,7 @@ const TABS = [['b', 'Buchungen'], ['z', 'Zahlen'], ['y', 'Abgleich']];
 function chrome() {
   $('#nv').innerHTML = TABS.map(([k, n]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="go('${k}')">${t(n)}</button>`).join('');
   $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="sprache('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="sprache('es')">ES</button>`;
-  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v8';
+  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v9';
 }
 function sprache(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
 function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scrollTo(0, 0); }
@@ -147,7 +148,8 @@ async function vY() {
   const offen = D.eig.length, fotos = ks.filter(u => D.eig.some(b => b.uid === u) || ((D.master && D.master.buchungen) || []).some(b => b.uid === u && !b.beleg)).length;
   PREP = null; bauDateien().then(r => { PREP = r; }).catch(() => { });
   $('#m').innerHTML = `<div class="sum">${t('Stand vom Notebook:')} <b>${st}</b><br>${t('Zuletzt gesichert:')} <b>${gs}</b><br><b>${offen}</b> ${t('Buchungen warten auf das Notebook')} · <b>${fotos}</b> ${t('Fotos zum Mitsenden')}</div>
-   <div class="row"><button class="btn" onclick="sichern()">${t('Sichern (nach Google Drive)')}</button></div><div class="mu">${t('Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.')}</div>
+   ${drvBlock()}
+   <div class="row"><button class="btn alt" onclick="sichern()">${t('Sichern (nach Google Drive)')}</button></div><div class="mu">${t('Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.')}</div>
    <div class="row"><label class="btn alt" style="margin:0">${t('Laden (vom Google Drive)')}<input type="file" style="display:none" onchange="laden(this)"></label></div><div class="mu">${t('Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Belege-Eingang“.')}</div>`;
 }
 
@@ -220,3 +222,49 @@ async function eDel() {
 }
 document.documentElement.lang = LANG;
 go('b');
+
+/* ---------- Automatischer Abgleich über die Drive-Brücke (ohne Klick) ---------- */
+const DRV = { app: 'kasse', url: (() => { try { return localStorage.getItem('kb_url') || ''; } catch (e) { return ''; } })(), busy: false, t: null, st: '', zeit: 0 };
+const lsg = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lss = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
+const drvPost = async b => { const r = await fetch(DRV.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) }); const j = await r.json(); if (!j.ok) throw new Error(j.err || 'Fehler'); return j; };
+const drvGetF = async f => { const r = await fetch(DRV.url + (DRV.url.includes('?') ? '&' : '?') + 'a=get&app=' + DRV.app + '&f=' + encodeURIComponent(f) + '&_=' + Date.now()); const j = await r.json(); return j.ok ? JSON.parse(j.text) : null; };
+const toB64 = bl => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(new Error('Datei')); fr.readAsDataURL(bl); });
+function drvSoon(ms) { if (!DRV.url) return; clearTimeout(DRV.t); DRV.t = setTimeout(() => drvSync(), ms || 3000); }
+function drvShow() { const e = $('#drvst'); if (e) e.textContent = DRV.st; }
+function drvBlock() {
+  return `<div class="sum"><b>${t('Automatischer Abgleich mit Google Drive')}</b><div class="mu" id="drvst">${esc(DRV.st || (DRV.url ? '' : t('Noch nicht verbunden.')))}</div>
+   <label>${t('Verbindungsadresse (einmalig eintragen)')}</label><input id="drvurl" value="${esc(DRV.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false">
+   <div class="row"><button class="btn" onclick="drvSetze()">${DRV.url ? t('Jetzt abgleichen') : t('Verbinden')}</button></div></div>`;
+}
+async function drvSetze() {
+  const u = ($('#drvurl').value || '').trim();
+  if (u && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)) { msg('Die Adresse muss mit https://script.google.com/macros/s/ beginnen und auf /exec enden.', 1); return; }
+  DRV.url = u; try { localStorage.setItem('kb_url', u); } catch (e) { } DRV.st = t('Abgleich läuft …'); drvShow();
+  if (u) await drvSync(true);
+}
+async function drvSync(manuell) {
+  if (!DRV.url || DRV.busy || (document.hidden && !manuell)) return; DRV.busy = true; let neu = false;
+  try {
+    const m = await drvGetF('kasse-daten.json');
+    if (m && m.format === 'steuergali-kasse' && m.von === 'notebook' && String(m.stand) !== lsg('kb_stand', '')) { QUIET = true; await mergeMaster(m); QUIET = false; lss('kb_stand', String(m.stand)); neu = true; }
+    const eigH = JSON.stringify(D.eig.map(({ foto, geteilt, ...b }) => b));
+    if (D.eig.length && eigH !== lsg('kb_pushed', '')) {
+      const d = new Date(), name = `kasse-handy-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.json`;
+      await drvPost({ app: 'kasse', name, text: JSON.stringify({ format: 'steuergali-kasse', version: 1, von: 'handy', stand: Date.now(), buchungen: JSON.parse(eigH) }) });
+      lss('kb_pushed', eigH); QUIET = true; D.gesichert = Date.now(); D.eig.forEach(b => b.geteilt = D.gesichert); save(); QUIET = false;
+    }
+    const im = new Set(((D.master && D.master.buchungen) || []).filter(b => b.beleg).map(b => b.uid)), gesendet = new Set(lsg('kb_pf', []));
+    const ks = (await fkeys()).filter(u => !im.has(u) && (D.eig.some(b => b.uid === u) || ((D.master && D.master.buchungen) || []).some(b => b.uid === u)));
+    for (const u of ks) {
+      const bl = await fget(u); if (!bl) continue; const key = u + ':' + bl.size; if (gesendet.has(key)) continue;
+      const pdf = bl.type === 'application/pdf';
+      await drvPost({ app: 'kasse', name: `beleg-${u}.${pdf ? 'pdf' : 'jpg'}`, b64: await toB64(bl) }); gesendet.add(key); lss('kb_pf', [...gesendet]);
+    }
+    DRV.zeit = Date.now(); const z = new Date(); DRV.st = t('Verbunden. Letzter Abgleich:') + ' ' + p2(z.getHours()) + ':' + p2(z.getMinutes());
+    if (neu) { const a = document.activeElement, o = $('#ov'); if (!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) && !(o && o.style.display === 'block')) go(S.tab); }
+  } catch (e) { QUIET = false; DRV.st = t('Verbindung fehlgeschlagen:') + ' ' + (e && e.message || e); }
+  DRV.busy = false; drvShow();
+}
+setTimeout(() => drvSync(), 1500); setInterval(() => drvSync(), 45000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) drvSync(); });
