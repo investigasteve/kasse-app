@@ -14,7 +14,7 @@ const ES = {
   'Stand vom Notebook:': 'Datos del portátil:', 'noch nie geladen': 'nunca cargado', 'Zuletzt gesichert:': 'Última copia:', 'nie': 'nunca', 'Buchungen warten auf das Notebook': 'apuntes esperan al portátil', 'Fotos zum Mitsenden': 'fotos para enviar',
   'Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.': 'Al guardar se crean un archivo y las fotos. Elija «Drive» y la carpeta «Belege-Eingang»; el portátil las leerá en la próxima sincronización.',
   'Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Belege-Eingang“.': 'Al cargar se abre el selector: elija «kasse-daten.json» de la carpeta «Belege-Eingang» de Drive.',
-  'Datei gesichert.': 'Archivo guardado.', 'Nichts zu sichern.': 'Nada que guardar.', 'Geladen:': 'Cargado:', 'angekommen': 'recibidos', 'Fotos nicht angenommen: zu groß.': 'Foto no aceptada: demasiado grande.',
+  'Datei gesichert.': 'Archivo guardado.', 'Bereit. Bitte noch einmal auf „Sichern“ tippen.': 'Listo. Pulse de nuevo «Guardar».', 'Das Teilen ging nicht. Die Dateien liegen jetzt im Ordner „Downloads“ des Handys. Bitte von dort nach Drive „Belege-Eingang“ verschieben.': 'No se pudo compartir. Los archivos están en la carpeta «Descargas» del móvil. Muévalos desde allí a Drive «Belege-Eingang».', 'Nichts zu sichern.': 'Nada que guardar.', 'Geladen:': 'Cargado:', 'angekommen': 'recibidos', 'Fotos nicht angenommen: zu groß.': 'Foto no aceptada: demasiado grande.',
   'Von': 'De', 'bis': 'a', 'Alle Buchungen im Handy ansehen': 'Ver todos los apuntes'
 };
 const KATS = ['Förderung/Zuschuss', 'Rechnung', 'Bücher/KDP', 'Affiliate', 'Postkarten/Druck', 'Aufträge', 'Hosting/Domain', 'Software', 'Büro', 'Reise', 'Telefon/Internet', 'Sozialversicherung', 'Sonstiges', 'Unklar'];
@@ -80,19 +80,31 @@ async function laden(inp) {
   try { const j = JSON.parse(await f.text()); const ang = await mergeMaster(j); msg(`${t('Geladen:')} ${D.master.buchungen.length} ${t('Buchungen')}, ${ang} ${t('angekommen')}`); go(S.tab); }
   catch (e) { msg(e instanceof SyntaxError ? t('Die Datei konnte nicht gelesen werden.') : e.message, 1); }
 }
-async function sichern() {
+let PREP = null;
+async function bauDateien() {
   const im = new Set(((D.master && D.master.buchungen) || []).filter(b => b.beleg).map(b => b.uid));
   const ks = (await fkeys()).filter(u => !im.has(u) && (D.eig.some(b => b.uid === u) || ((D.master && D.master.buchungen) || []).some(b => b.uid === u)));
-  if (!D.eig.length && !ks.length) { msg(t('Nichts zu sichern.')); return; }
+  if (!D.eig.length && !ks.length) return null;
   const d = new Date(), fn = `kasse-handy-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.json`;
   const out = { format: 'steuergali-kasse', version: 1, von: 'handy', stand: Date.now(), buchungen: D.eig.map(({ foto, geteilt, ...b }) => b) };
   const files = [new File([JSON.stringify(out)], fn, { type: 'application/json' })];
   for (const u of ks) { const b = await fget(u); if (b) { const pdf = b.type === 'application/pdf'; files.push(new File([b], `beleg-${u}.${pdf ? 'pdf' : 'jpg'}`, { type: pdf ? 'application/pdf' : 'image/jpeg' })); } }
-  try {
-    if (navigator.canShare && navigator.canShare({ files })) await navigator.share({ files, title: fn });
-    else for (const f of files) { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); await new Promise(r => setTimeout(r, 400)); URL.revokeObjectURL(a.href); a.remove(); }
-    D.gesichert = Date.now(); D.eig.forEach(b => b.geteilt = D.gesichert); save(); msg(t('Datei gesichert.')); go(S.tab);
-  } catch (e) { if (e && e.name !== 'AbortError') msg(String(e.message || e), 1); }
+  return { files, fn };
+}
+async function ladeDatei(files) {
+  for (const f of files) { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); await new Promise(r => setTimeout(r, 500)); URL.revokeObjectURL(a.href); a.remove(); }
+}
+function fertig() { D.gesichert = Date.now(); D.eig.forEach(b => b.geteilt = D.gesichert); save(); msg(t('Datei gesichert.')); go(S.tab); }
+function sichern() {
+  const P = PREP;
+  if (!P) { bauDateien().then(r => { if (!r) { msg(t('Nichts zu sichern.')); return; } PREP = r; $('#m').scrollTop = 0; msg(t('Bereit. Bitte noch einmal auf „Sichern“ tippen.')); }); return; }
+  let p;
+  try { p = (navigator.canShare && navigator.canShare({ files: P.files })) ? navigator.share({ files: P.files, title: P.fn }) : Promise.reject(new Error('kein-teilen')); } catch (e) { p = Promise.reject(e); }
+  p.then(fertig).catch(async e => {
+    if (e && e.name === 'AbortError') return;
+    try { await ladeDatei(P.files); msg(t('Das Teilen ging nicht. Die Dateien liegen jetzt im Ordner „Downloads“ des Handys. Bitte von dort nach Drive „Belege-Eingang“ verschieben.'), 1); D.gesichert = Date.now(); D.eig.forEach(b => b.geteilt = D.gesichert); save(); }
+    catch (e2) { msg(String(e2.message || e2), 1); }
+  });
 }
 
 /* ---------- Oberfläche ---------- */
@@ -100,7 +112,7 @@ const TABS = [['b', 'Buchungen'], ['z', 'Zahlen'], ['y', 'Abgleich']];
 function chrome() {
   $('#nv').innerHTML = TABS.map(([k, n]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="go('${k}')">${t(n)}</button>`).join('');
   $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="sprache('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="sprache('es')">ES</button>`;
-  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v6';
+  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v7';
 }
 function sprache(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
 function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scrollTo(0, 0); }
@@ -133,6 +145,7 @@ function vZ() {
 async function vY() {
   const ks = await fkeys(), st = D.master ? new Date(D.master.stand).toLocaleString(LANG === 'es' ? 'es-ES' : 'de-DE') : t('noch nie geladen'), gs = D.gesichert ? new Date(D.gesichert).toLocaleString(LANG === 'es' ? 'es-ES' : 'de-DE') : t('nie');
   const offen = D.eig.length, fotos = ks.filter(u => D.eig.some(b => b.uid === u) || ((D.master && D.master.buchungen) || []).some(b => b.uid === u && !b.beleg)).length;
+  PREP = null; bauDateien().then(r => { PREP = r; }).catch(() => { });
   $('#m').innerHTML = `<div class="sum">${t('Stand vom Notebook:')} <b>${st}</b><br>${t('Zuletzt gesichert:')} <b>${gs}</b><br><b>${offen}</b> ${t('Buchungen warten auf das Notebook')} · <b>${fotos}</b> ${t('Fotos zum Mitsenden')}</div>
    <div class="row"><button class="btn" onclick="sichern()">${t('Sichern (nach Google Drive)')}</button></div><div class="mu">${t('Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.')}</div>
    <div class="row"><label class="btn alt" style="margin:0">${t('Laden (vom Google Drive)')}<input type="file" style="display:none" onchange="laden(this)"></label></div><div class="mu">${t('Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Belege-Eingang“.')}</div>`;
