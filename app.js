@@ -113,7 +113,7 @@ const TABS = [['b', 'Buchungen'], ['z', 'Zahlen'], ['y', 'Abgleich']];
 function chrome() {
   $('#nv').innerHTML = TABS.map(([k, n]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="go('${k}')">${t(n)}</button>`).join('');
   $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="sprache('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="sprache('es')">ES</button>`;
-  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v9';
+  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v10';
 }
 function sprache(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
 function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scrollTo(0, 0); }
@@ -224,7 +224,7 @@ document.documentElement.lang = LANG;
 go('b');
 
 /* ---------- Automatischer Abgleich über die Drive-Brücke (ohne Klick) ---------- */
-const DRV = { app: 'kasse', url: (() => { try { return localStorage.getItem('kb_url') || ''; } catch (e) { return ''; } })(), busy: false, t: null, st: '', zeit: 0 };
+const DRV = { app: 'kasse', url: (() => { try { return localStorage.getItem('kb_url') || 'https://script.google.com/macros/s/AKfycbwXl6wvYj9gMHTHwL0wfTCqcwdtAe8Tp5fnYUGtbuVEzkg8leIUlgnIh4cj-wyznfE/exec'; } catch (e) { return 'https://script.google.com/macros/s/AKfycbwXl6wvYj9gMHTHwL0wfTCqcwdtAe8Tp5fnYUGtbuVEzkg8leIUlgnIh4cj-wyznfE/exec'; } })(), busy: false, t: null, st: '', zeit: 0 };
 const lsg = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
 const lss = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
 const drvPost = async b => { const r = await fetch(DRV.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) }); const j = await r.json(); if (!j.ok) throw new Error(j.err || 'Fehler'); return j; };
