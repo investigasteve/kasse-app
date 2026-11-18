@@ -12,8 +12,8 @@ const ES = {
   'Überschlag aus den Buchungen im Handy. Maßgeblich sind die Zahlen am Notebook.': 'Estimación con los apuntes del móvil. Valen las cifras del portátil.',
   'Sichern (nach Google Drive)': 'Guardar (en Google Drive)', 'Laden (vom Google Drive)': 'Cargar (desde Google Drive)', 'Das ist keine Datei der Kasse unterwegs.': 'Este archivo no es de la caja en marcha.', 'Die Datei konnte nicht gelesen werden.': 'No se pudo leer el archivo.',
   'Stand vom Notebook:': 'Datos del portátil:', 'noch nie geladen': 'nunca cargado', 'Zuletzt gesichert:': 'Última copia:', 'nie': 'nunca', 'Buchungen warten auf das Notebook': 'apuntes esperan al portátil', 'Fotos zum Mitsenden': 'fotos para enviar',
-  'Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Kasse-Verwaltung“; das Notebook liest sie beim nächsten Abgleich ein.': 'Al guardar se crean un archivo y las fotos. Elija «Drive» y la carpeta «Kasse-Verwaltung»; el portátil las leerá en la próxima sincronización.',
-  'Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Kasse-Verwaltung“.': 'Al cargar se abre el selector: elija «kasse-daten.json» de la carpeta «Kasse-Verwaltung» de Drive.',
+  'Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.': 'Al guardar se crean un archivo y las fotos. Elija «Drive» y la carpeta «Belege-Eingang»; el portátil las leerá en la próxima sincronización.',
+  'Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Belege-Eingang“.': 'Al cargar se abre el selector: elija «kasse-daten.json» de la carpeta «Belege-Eingang» de Drive.',
   'Datei gesichert.': 'Archivo guardado.', 'Nichts zu sichern.': 'Nada que guardar.', 'Geladen:': 'Cargado:', 'angekommen': 'recibidos', 'Fotos nicht angenommen: zu groß.': 'Foto no aceptada: demasiado grande.',
   'Von': 'De', 'bis': 'a', 'Alle Buchungen im Handy ansehen': 'Ver todos los apuntes'
 };
@@ -98,10 +98,10 @@ async function sichern() {
 const TABS = [['b', 'Buchungen'], ['z', 'Zahlen'], ['y', 'Abgleich']];
 function chrome() {
   $('#nv').innerHTML = TABS.map(([k, n]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="go('${k}')">${t(n)}</button>`).join('');
-  $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="lang('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="lang('es')">ES</button>`;
+  $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="sprache('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="sprache('es')">ES</button>`;
   $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt');
 }
-function lang(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
+function sprache(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
 function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scrollTo(0, 0); }
 function yrOpts() { let h = ''; for (let y = 2023; y <= new Date().getFullYear() + 1; y++) h += `<option ${y === S.y ? 'selected' : ''}>${y}</option>`; return h; }
 const chips = () => `<div class="chips">${[[0, t('Jahr')], [1, 'Q1'], [2, 'Q2'], [3, 'Q3'], [4, 'Q4']].map(([q, n]) => `<button class="${S.q === q ? 'on' : ''}" onclick="S.q=${q};go(S.tab)">${n}</button>`).join('')}</div>`;
@@ -132,8 +132,8 @@ async function vY() {
   const ks = await fkeys(), st = D.master ? new Date(D.master.stand).toLocaleString(LANG === 'es' ? 'es-ES' : 'de-DE') : t('noch nie geladen'), gs = D.gesichert ? new Date(D.gesichert).toLocaleString(LANG === 'es' ? 'es-ES' : 'de-DE') : t('nie');
   const offen = D.eig.length, fotos = ks.filter(u => D.eig.some(b => b.uid === u) || ((D.master && D.master.buchungen) || []).some(b => b.uid === u && !b.beleg)).length;
   $('#m').innerHTML = `<div class="sum">${t('Stand vom Notebook:')} <b>${st}</b><br>${t('Zuletzt gesichert:')} <b>${gs}</b><br><b>${offen}</b> ${t('Buchungen warten auf das Notebook')} · <b>${fotos}</b> ${t('Fotos zum Mitsenden')}</div>
-   <div class="row"><button class="btn" onclick="sichern()">${t('Sichern (nach Google Drive)')}</button></div><div class="mu">${t('Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Kasse-Verwaltung“; das Notebook liest sie beim nächsten Abgleich ein.')}</div>
-   <div class="row"><label class="btn alt" style="margin:0">${t('Laden (vom Google Drive)')}<input type="file" style="display:none" onchange="laden(this)"></label></div><div class="mu">${t('Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Kasse-Verwaltung“.')}</div>`;
+   <div class="row"><button class="btn" onclick="sichern()">${t('Sichern (nach Google Drive)')}</button></div><div class="mu">${t('Sichern erzeugt eine Datei und die Belegfotos. Wähle in der Liste „Drive“ und den Ordner „Belege-Eingang“; das Notebook liest sie beim nächsten Abgleich ein.')}</div>
+   <div class="row"><label class="btn alt" style="margin:0">${t('Laden (vom Google Drive)')}<input type="file" style="display:none" onchange="laden(this)"></label></div><div class="mu">${t('Laden öffnet die Dateiauswahl: nimm die Datei „kasse-daten.json“ aus dem Drive-Ordner „Belege-Eingang“.')}</div>`;
 }
 
 /* ---------- Buchung erfassen / ansehen ---------- */
