@@ -3,7 +3,7 @@
 const ES = {
   'Buchungen': 'Apuntes', 'Zahlen': 'Cifras', 'Abgleich': 'Sincronizar', 'Jahr': 'Año', 'Neue Buchung': 'Nuevo apunte', 'Buchung': 'Apunte', 'Einnahme': 'Ingreso', 'Ausgabe': 'Gasto',
   'Datum': 'Fecha', 'Betrag': 'Importe', 'Betrag ist': 'El importe es', 'brutto (mit IVA)': 'bruto (con IVA)', 'netto (ohne IVA)': 'neto (sin IVA)', 'IVA-Satz': 'Tipo de IVA', 'Partner (Kunde / Lieferant)': 'Contacto (cliente / proveedor)',
-  'Rechnungsnummer': 'Nº de factura', 'Kategorie': 'Categoría', 'Land': 'País', 'Notiz': 'Nota', 'Belegfoto': 'Foto del justificante', 'Foto aufnehmen / wählen': 'Hacer / elegir foto', 'Das Foto wird beim nächsten Sichern mitgesendet.': 'La foto se enviará en la próxima copia.', 'Foto gespeichert.': 'Foto guardado.', 'Foto wartet auf das Notebook': 'foto espera al portátil', 'Foto entfernen': 'Quitar foto',
+  'Rechnungsnummer': 'Nº de factura', 'Kategorie': 'Categoría', 'Land': 'País', 'Notiz': 'Nota', 'Belegfoto': 'Foto del justificante', 'Beleg aus Datei wählen oder fotografieren': 'Elegir archivo o hacer foto', 'Das Foto wird beim nächsten Sichern mitgesendet.': 'La foto se enviará en la próxima copia.', 'Foto gespeichert.': 'Foto guardado.', 'Foto wartet auf das Notebook': 'foto espera al portátil', 'Foto entfernen': 'Quitar foto',
   'Speichern': 'Guardar', 'Abbrechen': 'Cancelar', 'Schließen': 'Cerrar', 'Löschen': 'Borrar', 'Gespeichert.': 'Guardado.', 'Gelöscht.': 'Borrado.',
   'Das Datum ist ungültig.': 'La fecha no es válida.', 'Der Betrag muss größer als 0 sein.': 'El importe debe ser mayor que 0.', 'Dieses Quartal ist am Notebook abgeschlossen (deklariert). Hier kann nichts mehr eingetragen werden.': 'Este trimestre está cerrado (declarado) en el portátil. Aquí ya no se puede registrar nada.',
   'Vom Notebook – hier nur zum Ansehen.': 'Del portátil – aquí solo para consultar.', 'wartet auf das Notebook': 'espera al portátil', 'neu': 'nuevo', 'Beleg am Notebook': 'justificante en el portátil', 'Foto': 'foto', 'Quartal abgeschlossen': 'trimestre cerrado',
@@ -51,6 +51,7 @@ const fput = (u, b) => idbDo('readwrite', s => s.put(b, u));
 const fdel = u => idbDo('readwrite', s => s.delete(u)).catch(() => { });
 const fkeys = () => idbDo('readonly', s => s.getAllKeys()).then(k => k || []).catch(() => []);
 function verkleinern(file) {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) return Promise.resolve(file.type === 'application/pdf' ? file : new Blob([file], { type: 'application/pdf' }));
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(file), im = new Image();
     im.onload = () => {
@@ -86,7 +87,7 @@ async function sichern() {
   const d = new Date(), fn = `kasse-handy-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.json`;
   const out = { format: 'steuergali-kasse', version: 1, von: 'handy', stand: Date.now(), buchungen: D.eig.map(({ foto, geteilt, ...b }) => b) };
   const files = [new File([JSON.stringify(out)], fn, { type: 'application/json' })];
-  for (const u of ks) { const b = await fget(u); if (b) files.push(new File([b], `beleg-${u}.jpg`, { type: 'image/jpeg' })); }
+  for (const u of ks) { const b = await fget(u); if (b) { const pdf = b.type === 'application/pdf'; files.push(new File([b], `beleg-${u}.${pdf ? 'pdf' : 'jpg'}`, { type: pdf ? 'application/pdf' : 'image/jpeg' })); } }
   try {
     if (navigator.canShare && navigator.canShare({ files })) await navigator.share({ files, title: fn });
     else for (const f of files) { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); await new Promise(r => setTimeout(r, 400)); URL.revokeObjectURL(a.href); a.remove(); }
@@ -147,7 +148,7 @@ async function edit(u) {
     const h = await fget(u); F = { uid: u, m: 1 };
     ov(`<h2>${t('Buchung')}</h2><div class="card" style="display:block"><b class="${alt.typ === 'einnahme' ? 'ein' : 'aus'}">${alt.typ === 'einnahme' ? '+' : '−'}${eur(alt.brutto)}</b><div class="mu">${dm(alt.datum)} · ${alt.iva_satz} % IVA · ${esc(alt.land)}</div><div>${esc(alt.partner)}</div><div class="mu">${esc(tk(alt.kategorie))}${alt.rechnungsnr ? ' · ' + esc(alt.rechnungsnr) : ''}</div><div>${esc(alt.notiz)}</div></div>
      <div class="mu">${t('Vom Notebook – hier nur zum Ansehen.')}</div>
-     <label>${t('Belegfoto')}</label>${alt.beleg ? `<div class="mu">📎 ${t('Beleg am Notebook')}</div>` : `<div class="row"><label class="btn alt" style="margin:0">📷 ${t('Foto aufnehmen / wählen')}<input type="file" accept="image/*" style="display:none" onchange="fotoMaster(this)"></label><button class="btn del s" id="f-fw" onclick="fotoMasterWeg()" style="display:none">${t('Foto entfernen')}</button></div><img id="f-img" class="foto" style="display:none" alt=""><div class="mu" id="f-hint" style="display:none">${t('Das Foto wird beim nächsten Sichern mitgesendet.')}</div>`}
+     <label>${t('Belegfoto')}</label>${alt.beleg ? `<div class="mu">📎 ${t('Beleg am Notebook')}</div>` : `<div class="row"><label class="btn alt" style="margin:0">📷 ${t('Beleg aus Datei wählen oder fotografieren')}<input type="file" accept="image/*,application/pdf,.pdf,.jpg,.jpeg,.png,.webp" style="display:none" onchange="fotoMaster(this)"></label><button class="btn del s" id="f-fw" onclick="fotoMasterWeg()" style="display:none">${t('Foto entfernen')}</button></div><img id="f-img" class="foto" style="display:none" alt=""><div class="mu" id="f-hint" style="display:none">${t('Das Foto wird beim nächsten Sichern mitgesendet.')}</div>`}
      <div class="row"><button class="btn alt" onclick="oc();go('b')">${t('Schließen')}</button></div>`);
     if (h && !alt.beleg) { zeigFoto(h); const x = $('#f-hint'); if (x) x.style.display = 'block'; }
     return;
@@ -166,7 +167,7 @@ async function edit(u) {
    <label>${t('Kategorie')}</label><select id="f-k"><option value=""></option>${kats.map(k => `<option value="${esc(k)}" ${b.kategorie === k ? 'selected' : ''}>${esc(tk(k))}</option>`).join('')}</select>
    <label>${t('Rechnungsnummer')}</label><input id="f-r" value="${esc(b.rechnungsnr)}">
    <label>${t('Notiz')}</label><textarea id="f-n">${esc(b.notiz)}</textarea>
-   <label>${t('Belegfoto')}</label><div class="row"><label class="btn alt" style="margin:0">📷 ${t('Foto aufnehmen / wählen')}<input type="file" accept="image/*" style="display:none" onchange="fotoWahl(this)"></label><button class="btn del s" id="f-fw" onclick="fotoWeg()" style="display:none">${t('Foto entfernen')}</button></div><img id="f-img" class="foto" style="display:none" alt="">
+   <label>${t('Belegfoto')}</label><div class="row"><label class="btn alt" style="margin:0">📷 ${t('Beleg aus Datei wählen oder fotografieren')}<input type="file" accept="image/*,application/pdf,.pdf,.jpg,.jpeg,.png,.webp" style="display:none" onchange="fotoWahl(this)"></label><button class="btn del s" id="f-fw" onclick="fotoWeg()" style="display:none">${t('Foto entfernen')}</button></div><img id="f-img" class="foto" style="display:none" alt="">
    <div class="row" style="margin-top:18px"><button class="btn" onclick="eSave()">${t('Speichern')}</button><button class="btn alt" onclick="oc()">${t('Abbrechen')}</button>${alt ? `<button class="btn del" onclick="eDel()">${t('Löschen')}</button>` : ''}</div>`);
   if (F.hatFoto) fget(F.uid).then(bl => { if (bl) zeigFoto(bl); });
 }
@@ -174,14 +175,14 @@ async function fotoMaster(inp) {
   const f = inp.files[0]; inp.value = ''; if (!f) return;
   try { const bl = await verkleinern(f); if (bl.size > 14 * 1024 * 1024) { msg(t('Fotos nicht angenommen: zu groß.'), 1); return; } await fput(F.uid, bl); zeigFoto(bl); const x = $('#f-hint'); if (x) x.style.display = 'block'; msg(t('Foto gespeichert.')); } catch (e) { msg('Foto: ' + e.message, 1); }
 }
-async function fotoMasterWeg() { await fdel(F.uid); const i = $('#f-img'); i.style.display = 'none'; $('#f-fw').style.display = 'none'; const x = $('#f-hint'); if (x) x.style.display = 'none'; }
+async function fotoMasterWeg() { await fdel(F.uid); const i = $('#f-img'); i.style.display = 'none'; const pp = $('#f-pdf'); if (pp) pp.style.display = 'none'; $('#f-fw').style.display = 'none'; const x = $('#f-hint'); if (x) x.style.display = 'none'; }
 function art(x) { F.typ = x; $('#a-a').classList.toggle('on', x === 'ausgabe'); $('#a-e').classList.toggle('on', x === 'einnahme'); }
-function zeigFoto(bl) { const i = $('#f-img'); if (!i) return; if (i.src) URL.revokeObjectURL(i.src); i.src = URL.createObjectURL(bl); i.style.display = 'block'; $('#f-fw').style.display = ''; }
+function zeigFoto(bl) { const i = $('#f-img'); if (!i) return; $('#f-fw').style.display = ''; let p = $('#f-pdf'); if (!p) { p = document.createElement('div'); p.id = 'f-pdf'; p.className = 'mu'; p.style.cssText = 'font-size:16px;margin:8px 0'; i.parentNode.insertBefore(p, i); } if (bl.type === 'application/pdf') { i.style.display = 'none'; p.textContent = '📄 PDF-Beleg angehängt'; p.style.display = 'block'; return; } p.style.display = 'none'; if (i.src) URL.revokeObjectURL(i.src); i.src = URL.createObjectURL(bl); i.style.display = 'block'; }
 async function fotoWahl(inp) {
   const f = inp.files[0]; inp.value = ''; if (!f) return;
   try { const bl = await verkleinern(f); if (bl.size > 14 * 1024 * 1024) { msg(t('Fotos nicht angenommen: zu groß.'), 1); return; } F.blob = bl; F.weg = false; zeigFoto(bl); } catch (e) { msg('Foto: ' + e.message, 1); }
 }
-function fotoWeg() { F.blob = null; F.weg = true; const i = $('#f-img'); i.style.display = 'none'; $('#f-fw').style.display = 'none'; }
+function fotoWeg() { F.blob = null; F.weg = true; const i = $('#f-img'); i.style.display = 'none'; const pp = $('#f-pdf'); if (pp) pp.style.display = 'none'; $('#f-fw').style.display = 'none'; }
 async function eSave() {
   const d = $('#f-d').value, iva = +$('#f-i').value;
   let rb = $('#f-b').value.trim(); if (rb.includes(',')) rb = rb.replace(/\./g, '').replace(',', '.');
