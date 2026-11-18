@@ -32,5 +32,5 @@ table{width:100%;border-collapse:collapse;font-size:15px}td{padding:5px 0;border
 <header><h1>Kasse unterwegs<small id="hs"></small></h1><div class="lang" id="lg"></div></header>
 <main id="m"></main><nav id="nv"></nav><div id="ov"></div><div id="toast"></div>
 <script src="app.js"></script>
-<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+<script>if('serviceWorker' in navigator)addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});var had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)location.reload();had=true;});});</script>
 </body></html>

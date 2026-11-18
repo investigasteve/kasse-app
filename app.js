@@ -100,7 +100,7 @@ const TABS = [['b', 'Buchungen'], ['z', 'Zahlen'], ['y', 'Abgleich']];
 function chrome() {
   $('#nv').innerHTML = TABS.map(([k, n]) => `<button class="${S.tab === k ? 'on' : ''}" onclick="go('${k}')">${t(n)}</button>`).join('');
   $('#lg').innerHTML = `<button class="${LANG === 'de' ? 'on' : ''}" onclick="sprache('de')">DE</button> <button class="${LANG === 'es' ? 'on' : ''}" onclick="sprache('es')">ES</button>`;
-  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt');
+  $('#hs').textContent = alle().length + ' ' + t('Buchungen insgesamt') + ' · v6';
 }
 function sprache(l) { LANG = l; try { localStorage.setItem('kb_lang', l); } catch (e) { } document.documentElement.lang = l; go(S.tab); }
 function go(tab) { S.tab = tab; chrome(); ({ b: vB, z: vZ, y: vY })[tab](); scrollTo(0, 0); }
